@@ -4,3 +4,6 @@
 [submodule "mm-decomp"]
 	path = mm-decomp
 	url = https://github.com/zeldaret/mm
+[submodule "GlobalObjects"]
+	path = GlobalObjects
+	url = git@github.com:YAZ64MT/GlobalObjects.git

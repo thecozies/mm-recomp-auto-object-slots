@@ -1,0 +1,15 @@
+{
+    "authors" : [
+        "Wiseguy"
+    ],
+    "dependencies" : [
+        "yazmt_mm_global_objects"
+    ],
+    "description" : "This mod automatically manages object slots for actors, greatly expanding the number of available object slots.\n\nIt also loads objects on demand when an object is searched for in the slots, so `Object_GetSlot` should always find the object. This should allow spawning objects in any scene without having to load their objects first.",
+    "display_name" : "Auto Object Slots",
+    "game_id" : "mm",
+    "id" : "mm_recomp_auto_object_slots",
+    "minimum_recomp_version" : "1.2.1",
+    "short_description" : "Automatical actor object slot loading.",
+    "version" : "1.0.0"
+}
