@@ -42,6 +42,7 @@ struct ActorIdStack {
 
 void load_slots(PlayState* play, ActorId id);
 void unload_slots(PlayState* play, ActorId id);
+void print_context(ObjectContext* objectCtx);
 
 bool push_actor_stack(struct ActorIdStack *actor_stack, ActorId id, PlayState* play) {
     if (actor_stack->depth < SLOT_SET_STACK_SIZE) {
@@ -94,10 +95,6 @@ void on_pop_from_actor_stack(struct ActorIdStack *actor_stack) {
     }
 }
 
-
-
-// u32 slot_load_stack_depth = 0;
-// ActorId slot_load_id_stack[SLOT_SET_STACK_SIZE];
 struct ActorIdStack slot_load_id_stack = {NULL, {0}, 0};
 
 void propagate_persistent_slots(ObjectContext* objectCtx) {
@@ -151,9 +148,20 @@ void load_slots(PlayState* play, ActorId id) {
                 global_slots.dmaReqs[i] = play->objectCtx.slots[i].dmaReq;
             }
         }
+        // Otherwise, save the current object slots into that ID's slots.
+        else {
+            ActorId parent_id = slot_load_id_stack.ids[slot_load_id_stack.depth - 2];
+            IdSlots* parent_id_slots = &all_id_slots[parent_id];
+            for (int i = 0; i < OBJECT_SLOT_COUNT; i++) {
+                parent_id_slots->ids[i] = play->objectCtx.slots[i].id;
+                parent_id_slots->objects[i] = play->objectCtx.slots[i].segment;
+            }
+            parent_id_slots->numEntries = play->objectCtx.numEntries;
+        }
 
         // Load the slot set for the given actor ID.
         load_slots_impl(&play->objectCtx, id);
+        // print_context(&play->objectCtx);
     }
 }
 
@@ -213,62 +221,38 @@ const char *get_actor_define_string(ActorId id) {
     #undef DEFINE_ACTOR_UNSET
 }
 
-
-// struct ActorIdStack current_spawn_stack = {
-//     .play = NULL,
-//     .ids = {0},
-//     .depth = 0
-// };
-#define current_spawn_stack slot_load_id_stack
-
-// ActorId current_spawn_id = ACTOR_ID_MAX;
 RECOMP_HOOK("Actor_SpawnAsChildAndCutscene") void on_spawn(ActorContext* actorCtx, PlayState* play, s16 index, f32 x, f32 y, f32 z, s16 rotX,
                                      s16 rotY, s16 rotZ, s32 params, u32 csId, u32 halfDaysBits, Actor* parent)
 {
-    on_push_to_actor_stack(&current_spawn_stack, index, play);
+    on_push_to_actor_stack(&slot_load_id_stack, index, play);
     if (parent != NULL) {
-        recomp_printf("Spawning child of %20s (ID: 0x%04X)\n    ",
+        recomp_printf("Spawning child of %-20s (ID: 0x%04X)\n    ",
                      get_actor_define_string(parent->id), parent->id);
     }
-    recomp_printf("Spawning actor %20s (ID: 0x%04X) stack_depth: %2d\n",
-                 get_actor_define_string(index), index, current_spawn_stack.depth);
+    recomp_printf("Spawning actor %-20s (ID: 0x%04X) stack_depth: %2d\n",
+                 get_actor_define_string(index), index, slot_load_id_stack.depth);
 }
 
 RECOMP_HOOK_RETURN("Actor_SpawnAsChildAndCutscene") void after_spawn() {
-    on_pop_from_actor_stack(&current_spawn_stack);
+    on_pop_from_actor_stack(&slot_load_id_stack);
 }
 
-
-// struct ActorIdStack current_draw_stack = {
-//     .play = NULL,
-//     .ids = {0},
-//     .depth = 0
-// };
-#define current_draw_stack current_spawn_stack
-
 RECOMP_HOOK("Actor_Draw") void on_draw(PlayState* play, Actor* actor) {
-    on_push_to_actor_stack(&current_draw_stack, actor->id, play);
+    on_push_to_actor_stack(&slot_load_id_stack, actor->id, play);
 }
 
 RECOMP_HOOK_RETURN("Actor_Draw") void after_draw() {
-    on_pop_from_actor_stack(&current_draw_stack);
+    on_pop_from_actor_stack(&slot_load_id_stack);
 }
-
-// struct ActorIdStack current_update_stack = {
-//     .play = NULL,
-//     .ids = {0},
-//     .depth = 0
-// };
-#define current_update_stack current_spawn_stack
 
 RECOMP_HOOK("Actor_UpdateActor") void on_update(UpdateActor_Params* params) {
     PlayState* play = params->play;
     Actor* actor = params->actor;
-    on_push_to_actor_stack(&current_update_stack, actor->id, play);
+    on_push_to_actor_stack(&slot_load_id_stack, actor->id, play);
 }
 
 RECOMP_HOOK_RETURN("Actor_UpdateActor") void after_update() {
-    on_pop_from_actor_stack(&current_update_stack);
+    on_pop_from_actor_stack(&slot_load_id_stack);
 }
 
 void print_context(ObjectContext* objectCtx) {
@@ -308,7 +292,7 @@ RECOMP_PATCH s32 Object_GetSlot(ObjectContext* objectCtx, s16 objectId) {
     // if (auto_slot_loading_enabled) {
         if (objectCtx->numEntries < OBJECT_SLOT_COUNT) {
             int slot = objectCtx->numEntries;
-            recomp_printf("Auto loading object %24s 0x%04X into slot %d\n", get_obj_define_string(objectId), objectId, i);
+            recomp_printf("Auto loading object %-24s 0x%04X into slot %d\n", get_obj_define_string(objectId), objectId, i);
             objectCtx->numEntries++;
             objectCtx->slots[slot].id = objectId;
             objectCtx->slots[slot].segment = GlobalObjects_getGlobalObject(objectId);
